@@ -15,64 +15,73 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "smtp_user": "",
     "smtp_password": "",
     "port": 8000,
-    "host": "127.0.0.1"
+    "host": "0.0.0.0"
 }
+
 
 class ConfigService:
     @staticmethod
     def load_config() -> Dict[str, Any]:
-        """Loads configuration from config.json or returns default configuration."""
-        if not os.path.exists(CONFIG_PATH):
-            ConfigService.save_config(DEFAULT_CONFIG)
-            return DEFAULT_CONFIG.copy()
+        """Loads configuration safely without recursion."""
+        config = DEFAULT_CONFIG.copy()
         
         try:
-            config = DEFAULT_CONFIG.copy()
             if os.path.exists(CONFIG_PATH):
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    config.update(data)
-            
-            # Environment variable overrides (useful for Cloud/Render deployment)
-            if "PORT" in os.environ:
-                try:
-                    config["port"] = int(os.environ["PORT"])
-                except Exception:
-                    pass
-            if "HOST" in os.environ:
-                config["host"] = os.environ["HOST"]
-            if "DEFAULT_RECIPIENT" in os.environ:
-                config["default_recipient"] = os.environ["DEFAULT_RECIPIENT"]
-            if "EMAIL_METHOD" in os.environ:
-                config["email_method"] = os.environ["EMAIL_METHOD"]
-            elif os.name != "nt":
-                # On Linux / Cloud containers, default to SMTP
-                config["email_method"] = "smtp"
-            if "SMTP_HOST" in os.environ:
-                config["smtp_host"] = os.environ["SMTP_HOST"]
-            if "SMTP_PORT" in os.environ:
-                try:
-                    config["smtp_port"] = int(os.environ["SMTP_PORT"])
-                except Exception:
-                    pass
-            if "SMTP_USER" in os.environ:
-                config["smtp_user"] = os.environ["SMTP_USER"]
-            if "SMTP_PASSWORD" in os.environ:
-                config["smtp_password"] = os.environ["SMTP_PASSWORD"]
-
-            return config
+                    if isinstance(data, dict):
+                        config.update(data)
         except Exception as e:
-            print(f"Error loading config: {e}. Using defaults.")
-            return DEFAULT_CONFIG.copy()
+            print(f"Error loading config from file: {e}. Using defaults.")
+
+        # Environment variable overrides (useful for Cloud/Render deployment)
+        if "PORT" in os.environ:
+            try:
+                config["port"] = int(os.environ["PORT"])
+            except Exception:
+                pass
+        if "HOST" in os.environ:
+            config["host"] = os.environ["HOST"]
+        if "DEFAULT_RECIPIENT" in os.environ:
+            config["default_recipient"] = os.environ["DEFAULT_RECIPIENT"]
+        if "EMAIL_METHOD" in os.environ:
+            config["email_method"] = os.environ["EMAIL_METHOD"]
+        elif os.name != "nt":
+            # On Linux / Cloud containers, default to SMTP
+            config["email_method"] = "smtp"
+        if "SMTP_HOST" in os.environ:
+            config["smtp_host"] = os.environ["SMTP_HOST"]
+        if "SMTP_PORT" in os.environ:
+            try:
+                config["smtp_port"] = int(os.environ["SMTP_PORT"])
+            except Exception:
+                pass
+        if "SMTP_USER" in os.environ:
+            config["smtp_user"] = os.environ["SMTP_USER"]
+        if "SMTP_PASSWORD" in os.environ:
+            config["smtp_password"] = os.environ["SMTP_PASSWORD"]
+
+        return config
 
     @staticmethod
     def save_config(new_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Saves configuration to config.json."""
-        current = ConfigService.load_config()
-        current.update(new_config)
+        """Saves configuration to config.json safely."""
+        config = DEFAULT_CONFIG.copy()
+        try:
+            if os.path.exists(CONFIG_PATH):
+                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        config.update(data)
+        except Exception:
+            pass
+
+        config.update(new_config)
+
         try:
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(current, f, indent=2, ensure_ascii=False)
+                json.dump(config, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving config: {e}")
-        return current
+
+        return config
