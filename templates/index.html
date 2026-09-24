@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aviso de Avería - Electromedicina Hospital Alcañiz</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- QRCode Generator CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        agenor: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0078d4',
+                            600: '#005a9e',
+                            700: '#106ebe',
+                            800: '#004578',
+                            900: '#002438'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .drag-active {
+            border-color: #0078d4 !important;
+            background-color: #f0f7ff !important;
+        }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans selection:bg-agenor-500 selection:text-white">
+
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-agenor-600 text-white p-2 rounded-xl shadow-md flex items-center justify-center">
+                    <i data-lucide="stethoscope" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">Avisos de Avería</h1>
+                    <p class="text-[11px] sm:text-xs text-slate-500 font-medium">Hospital de Alcañiz · Electromedicina</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btnOpenMobileQR" class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs sm:text-sm font-semibold text-agenor-700 bg-agenor-50 hover:bg-agenor-100 border border-agenor-200 rounded-lg transition-colors shadow-sm">
+                    <i data-lucide="smartphone" class="w-4 h-4 text-agenor-600"></i>
+                    <span>Abrir en Móvil</span>
+                </button>
+                <button id="btnOpenSettings" class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Ajustes</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-5xl mx-auto px-4 py-4 sm:py-6 flex-1 w-full">
+        <!-- Toast Notification -->
+        <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-md pointer-events-none"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+            
+            <!-- Left Column: Image Capture & Preview (5 cols) -->
+            <div class="lg:col-span-5 flex flex-col gap-4">
+                <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col h-full">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                            <i data-lucide="camera" class="w-5 h-5 text-agenor-600"></i>
+                            1. Foto de la Etiqueta
+                        </h2>
+                        <span id="pasteHint" class="text-xs text-slate-400 font-medium hidden md:inline">Ctrl+V para pegar</span>
+                    </div>
+
+                    <!-- Dropzone -->
+                    <div id="dropzone" class="border-2 border-dashed border-slate-300 hover:border-agenor-500 bg-slate-50 hover:bg-agenor-50/40 rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[200px] relative overflow-hidden group">
+                        <input type="file" id="fileInput" accept="image/*" class="hidden" />
+                        <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" />
+                        
+                        <!-- Empty State -->
+                        <div id="dropzoneEmpty" class="flex flex-col items-center gap-2 py-3">
+                            <div class="w-12 h-12 sm:w-14 sm:h-14 bg-slate-200 group-hover:bg-agenor-100 text-slate-400 group-hover:text-agenor-600 rounded-full flex items-center justify-center transition-colors">
+                                <i data-lucide="camera" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+                            </div>
+                            <div class="mt-1">
+                                <p class="text-sm font-semibold text-slate-700">Toma una foto o selecciona imagen</p>
+                                <p class="text-xs text-slate-400 mt-0.5">o arrastra un archivo aquí</p>
+                            </div>
+                            <div class="flex gap-2 mt-3" onclick="event.stopPropagation()">
+                                <button type="button" id="btnCamera" class="px-3.5 py-2 bg-agenor-600 active:bg-agenor-800 text-white text-xs font-bold rounded-xl shadow-md hover:bg-agenor-700 flex items-center gap-1.5 transition-all">
+                                    <i data-lucide="camera" class="w-4 h-4"></i> Tomar Foto
+                                </button>
+                                <button type="button" id="btnBrowse" class="px-3.5 py-2 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-xl shadow-sm hover:bg-slate-50 flex items-center gap-1.5">
+                                    <i data-lucide="image" class="w-4 h-4"></i> Galería / Archivo
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Image Preview State -->
+                        <div id="dropzonePreview" class="hidden w-full h-full flex-col items-center justify-center relative">
+                            <img id="imagePreview" src="" alt="Vista previa" class="max-h-60 object-contain rounded-lg shadow-sm border border-slate-200 bg-white" />
+                            
+                            <!-- Action overlay -->
+                            <div class="absolute top-2 right-2 flex gap-1">
+                                <button type="button" id="btnReanalyze" title="Reanalizar OCR" class="p-2 bg-white/90 hover:bg-white text-slate-700 rounded-lg shadow-md hover:text-agenor-600 transition-colors">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                </button>
+                                <button type="button" id="btnClearImage" title="Eliminar imagen" class="p-2 bg-white/90 hover:bg-white text-slate-700 hover:text-red-600 rounded-lg shadow-md transition-colors">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <!-- Processing Indicator -->
+                            <div id="ocrSpinner" class="hidden absolute inset-0 bg-slate-900/40 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center text-white">
+                                <div class="w-8 h-8 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                <span class="text-xs font-semibold mt-2">Extrayendo S/N y REF...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OCR Status Banner -->
+                    <div id="ocrStatusBanner" class="mt-3 text-xs p-2.5 rounded-lg bg-slate-100 text-slate-600 flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 shrink-0 text-slate-400"></i>
+                        <span id="ocrStatusText">Sube una foto para extraer automáticamente S/N y REF.</span>
+                    </div>
+
+                    <!-- Candidates Chips -->
+                    <div id="candidatesContainer" class="hidden mt-3">
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Valores detectados:</label>
+                        <div id="candidatesList" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Extracted Data & Email Form (7 cols) -->
+            <div class="lg:col-span-7 flex flex-col gap-4">
+                <div class="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col gap-4">
+                    <h2 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                        <i data-lucide="mail" class="w-5 h-5 text-agenor-600"></i>
+                        2. Datos de la Avería
+                    </h2>
+
+                    <!-- Extracted Values Grid: REF & S/N -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- REF Highlight Box -->
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-3.5">
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="inputREF" class="text-xs font-extrabold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                                    <i data-lucide="tag" class="w-4 h-4 text-slate-500"></i>
+                                    Referencia (REF)
+                                </label>
+                                <span id="refBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Pendiente</span>
+                            </div>
+                            <input 
+                                type="text" 
+                                id="inputREF" 
+                                placeholder="Ej: 862199 M2703A" 
+                                class="w-full text-base font-mono font-bold bg-white text-slate-900 border-2 border-slate-300 focus:border-agenor-600 focus:ring-2 focus:ring-agenor-200 rounded-lg px-3 py-2 outline-none transition-all placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400"
+                            />
+                        </div>
+
+                        <!-- S/N Highlight Box -->
+                        <div class="bg-agenor-50/70 border border-agenor-200 rounded-xl p-3 sm:p-3.5">
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="inputSN" class="text-xs font-extrabold text-agenor-800 uppercase tracking-wide flex items-center gap-1.5">
+                                    <i data-lucide="barcode" class="w-4 h-4"></i>
+                                    Número de Serie (S/N)
+                                </label>
+                                <span id="snBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Pendiente</span>
+                            </div>
+                            <input 
+                                type="text" 
+                                id="inputSN" 
+                                placeholder="Ej: DE78743189" 
+                                class="w-full text-base font-mono font-bold bg-white text-slate-900 border-2 border-agenor-300 focus:border-agenor-600 focus:ring-2 focus:ring-agenor-200 rounded-lg px-3 py-2 outline-none transition-all placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Email Recipient & Subject -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+                        <div>
+                            <label for="inputRecipient" class="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1">
+                                Destinatario del Correo
+                            </label>
+                            <input 
+                                type="email" 
+                                id="inputRecipient" 
+                                value="{{ config.default_recipient }}"
+                                placeholder="clientes.sistemas.medicos@philips.com" 
+                                class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-agenor-500 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium text-slate-800 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label for="inputSubject" class="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1">
+                                Asunto del Correo (Avería + REF)
+                            </label>
+                            <input 
+                                type="text" 
+                                id="inputSubject" 
+                                placeholder="Avería [REF]" 
+                                class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-agenor-500 rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Description of breakdown -->
+                    <div>
+                        <label for="inputText" class="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1.5 flex items-center justify-between">
+                            <span>Descripción de la Avería</span>
+                            <span class="text-[11px] text-slate-400 font-normal">Se inserta en el texto</span>
+                        </label>
+                        <textarea 
+                            id="inputText" 
+                            rows="3" 
+                            placeholder="Escribe la avería detectada (ej: no enciende la pantalla, fallo de sensor de presión, error de calibración en inicio...)" 
+                            class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-agenor-500 focus:ring-2 focus:ring-agenor-100 rounded-xl p-3 text-sm text-slate-800 outline-none transition-all"
+                        ></textarea>
+                    </div>
+
+                    <!-- Live Message Preview Box -->
+                    <div class="bg-amber-50/50 border border-amber-200/70 rounded-xl p-3 text-xs text-slate-700">
+                        <div class="flex items-center gap-1.5 font-bold text-amber-900 mb-1">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-amber-700"></i>
+                            Vista Previa del Mensaje Oficial:
+                        </div>
+                        <p id="liveMessagePreview" class="italic text-slate-600 leading-relaxed bg-white/80 p-2.5 rounded-lg border border-amber-100 text-[11px] sm:text-xs">
+                            "Me llamo Joaquín Egea Serrano. Soy el técnico de electromedicina del hospital de Alcañiz. El motivo del correo es informar de la avería del equipo <strong class="text-slate-800">[REF]</strong> con número de serie <strong class="text-slate-800">[S/N]</strong>. La avería detectada es <span class="text-amber-800 font-medium">[Descripción avería]</span>.
+                            <br>Quedo a su disposición para resolver cualquier duda.
+                            <br>Un cordial saludo".
+                        </p>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="flex items-center justify-between pt-1">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="checkAttach" checked class="w-4 h-4 text-agenor-600 rounded border-slate-300 focus:ring-agenor-500" />
+                            <span class="text-xs font-medium text-slate-700">Adjuntar fotografía original al correo</span>
+                        </label>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="pt-2">
+                        <button 
+                            type="button" 
+                            id="btnSendEmail" 
+                            class="w-full bg-agenor-600 hover:bg-agenor-700 active:bg-agenor-800 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-agenor-500/25 flex items-center justify-center gap-3 transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                            <i data-lucide="send" class="w-5 h-5"></i>
+                            <span id="btnSendText">Enviar Correo de Avería vía Outlook 365</span>
+                            <div id="sendSpinner" class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Mobile QR Modal -->
+    <div id="mobileQRModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center pb-2">
+                <h3 class="font-bold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                    <i data-lucide="smartphone" class="w-5 h-5 text-agenor-600"></i>
+                    Abrir en Móvil Android
+                </h3>
+                <button id="btnCloseMobileQR" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-500 mt-1 mb-4">
+                Escanea este código QR con la cámara de tu móvil para abrir la app y enviar avisos directamente:
+            </p>
+
+            <!-- QR Code Container -->
+            <div class="flex justify-center p-3 bg-white border-2 border-dashed border-agenor-200 rounded-2xl shadow-inner my-2 mx-auto w-fit">
+                <div id="qrcodeCanvas"></div>
+            </div>
+
+            <!-- Direct URL badge -->
+            <div class="mt-4 p-2.5 bg-slate-100 rounded-xl text-xs font-mono font-bold text-slate-800 select-all break-all border border-slate-200">
+                <span id="mobileUrlDisplay">https://astute-dice-carbon.ngrok-free.dev</span>
+            </div>
+
+            <div class="mt-2 text-[11px] text-slate-500 flex flex-col gap-1">
+                <span class="text-emerald-700 font-semibold">🌐 Dominio Permanente (4G / 5G / Wi-Fi)</span>
+                <span class="text-[10px] text-slate-400">Dirección local: {{ mobile_url }}</span>
+            </div>
+
+            <button type="button" id="btnOkMobileQR" class="w-full mt-5 py-2.5 text-white bg-agenor-600 hover:bg-agenor-700 rounded-xl font-semibold text-xs shadow-md">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5 text-agenor-600"></i>
+                    Configuración de Envío
+                </h3>
+                <button id="btnCloseSettings" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="py-4 space-y-4 text-sm">
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Destinatario Predeterminado</label>
+                    <input type="email" id="cfgRecipient" value="{{ config.default_recipient }}" placeholder="clientes.sistemas.medicos@philips.com" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm" />
+                    <p class="text-xs text-slate-400 mt-1">Dirección a la que se remitirán todos los avisos por defecto.</p>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Prefijo del Asunto</label>
+                    <input type="text" id="cfgSubjectPrefix" value="{{ config.subject_prefix }}" placeholder="Avería" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm" />
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Método de Envío</label>
+                    <select id="cfgEmailMethod" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
+                        <option value="outlook_com" {% if config.email_method == 'outlook_com' %}selected{% endif %}>Cliente Outlook 365 (Recomendado - Sesión activa)</option>
+                        <option value="smtp" {% if config.email_method == 'smtp' %}selected{% endif %}>SMTP Office 365 Directo (Requiere contraseña)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" id="btnCancelSettings" class="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium">Cancelar</button>
+                <button type="button" id="btnSaveSettings" class="px-4 py-2 text-white bg-agenor-600 hover:bg-agenor-700 rounded-lg font-semibold flex items-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frontend Logic -->
+    <script>
+        // Init Lucide icons
+        lucide.createIcons();
+
+        let currentFile = null;
+
+        // Elements
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const cameraInput = document.getElementById('cameraInput');
+        const btnBrowse = document.getElementById('btnBrowse');
+        const btnCamera = document.getElementById('btnCamera');
+        const dropzoneEmpty = document.getElementById('dropzoneEmpty');
+        const dropzonePreview = document.getElementById('dropzonePreview');
+        const imagePreview = document.getElementById('imagePreview');
+        const btnClearImage = document.getElementById('btnClearImage');
+        const btnReanalyze = document.getElementById('btnReanalyze');
+        const ocrSpinner = document.getElementById('ocrSpinner');
+        const ocrStatusBanner = document.getElementById('ocrStatusBanner');
+        const ocrStatusText = document.getElementById('ocrStatusText');
+        const inputSN = document.getElementById('inputSN');
+        const snBadge = document.getElementById('snBadge');
+        const inputREF = document.getElementById('inputREF');
+        const refBadge = document.getElementById('refBadge');
+        const candidatesContainer = document.getElementById('candidatesContainer');
+        const candidatesList = document.getElementById('candidatesList');
+        const inputText = document.getElementById('inputText');
+        const liveMessagePreview = document.getElementById('liveMessagePreview');
+        const inputRecipient = document.getElementById('inputRecipient');
+        const inputSubject = document.getElementById('inputSubject');
+        const checkAttach = document.getElementById('checkAttach');
+        const btnSendEmail = document.getElementById('btnSendEmail');
+        const btnSendText = document.getElementById('btnSendText');
+        const sendSpinner = document.getElementById('sendSpinner');
+
+        // Mobile QR Modal Elements
+        const mobileQRModal = document.getElementById('mobileQRModal');
+        const btnOpenMobileQR = document.getElementById('btnOpenMobileQR');
+        const btnCloseMobileQR = document.getElementById('btnCloseMobileQR');
+        const btnOkMobileQR = document.getElementById('btnOkMobileQR');
+        const qrcodeCanvas = document.getElementById('qrcodeCanvas');
+        const mobileUrlDisplay = document.getElementById('mobileUrlDisplay');
+
+        // Settings Elements
+        const settingsModal = document.getElementById('settingsModal');
+        const btnOpenSettings = document.getElementById('btnOpenSettings');
+        const btnCloseSettings = document.getElementById('btnCloseSettings');
+        const btnCancelSettings = document.getElementById('btnCancelSettings');
+        const btnSaveSettings = document.getElementById('btnSaveSettings');
+        const cfgRecipient = document.getElementById('cfgRecipient');
+        const cfgSubjectPrefix = document.getElementById('cfgSubjectPrefix');
+        const cfgEmailMethod = document.getElementById('cfgEmailMethod');
+
+        // Generate QR Code for Mobile Access
+        let qrGenerated = false;
+        function generateQRCode() {
+            if (qrGenerated) return;
+            const mobileUrl = mobileUrlDisplay.textContent.trim() || window.location.href;
+            new QRCode(qrcodeCanvas, {
+                text: mobileUrl,
+                width: 180,
+                height: 180,
+                colorDark: "#002438",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            qrGenerated = true;
+        }
+
+        btnOpenMobileQR.addEventListener('click', () => {
+            mobileQRModal.classList.remove('hidden');
+            generateQRCode();
+        });
+        [btnCloseMobileQR, btnOkMobileQR].forEach(btn => {
+            btn.addEventListener('click', () => mobileQRModal.classList.add('hidden'));
+        });
+
+        function updateLivePreview() {
+            const refVal = inputREF.value.trim() || '[REF]';
+            const snVal = inputSN.value.trim() || '[S/N]';
+            const descVal = inputText.value.trim() || '[Descripción avería]';
+
+            liveMessagePreview.innerHTML = `"Me llamo Joaquín Egea Serrano. Soy el técnico de electromedicina del hospital de Alcañiz. El motivo del correo es informar de la avería del equipo <strong class="text-slate-900">${refVal}</strong> con número de serie <strong class="text-slate-900">${snVal}</strong>. La avería detectada es <span class="text-amber-800 font-medium">${descVal}</span>.<br>Quedo a su disposición para resolver cualquier duda.<br>Un cordial saludo".`;
+        }
+
+        // Toast Helper
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-emerald-600 text-white' : 
+                            type === 'error' ? 'bg-rose-600 text-white' : 
+                            'bg-slate-800 text-white';
+            const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : 'info';
+
+            toast.className = `${bgClass} px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 shrink-0"></i><span>${message}</span>`;
+            
+            container.appendChild(toast);
+            lucide.createIcons({ targets: [toast] });
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // File Selection Handlers
+        btnBrowse.addEventListener('click', () => fileInput.click());
+        btnCamera.addEventListener('click', () => cameraInput.click());
+        dropzone.addEventListener('click', (e) => {
+            if (e.target === dropzone || e.target.closest('#dropzoneEmpty')) {
+                fileInput.click();
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+        });
+
+        cameraInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+        });
+
+        // Drag & Drop
+        ['dragenter', 'dragover'].forEach(name => {
+            dropzone.addEventListener(name, (e) => {
+                e.preventDefault();
+                dropzone.classList.add('drag-active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(name => {
+            dropzone.addEventListener(name, (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('drag-active');
+            });
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Clipboard Paste Listener (Ctrl+V)
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    handleFile(blob);
+                    showToast('Imagen pegada desde el portapapeles', 'info');
+                    break;
+                }
+            }
+        });
+
+        // Handle File Loading & OCR Trigger
+        function handleFile(file) {
+            currentFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                dropzoneEmpty.classList.add('hidden');
+                dropzonePreview.classList.remove('hidden');
+                runOCR(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        btnClearImage.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentFile = null;
+            fileInput.value = '';
+            cameraInput.value = '';
+            imagePreview.src = '';
+            dropzonePreview.classList.add('hidden');
+            dropzoneEmpty.classList.remove('hidden');
+            candidatesContainer.classList.add('hidden');
+            candidatesList.innerHTML = '';
+            inputSN.value = '';
+            inputREF.value = '';
+            updateSNBadge('none');
+            updateREFBadge('none');
+            updateLivePreview();
+            ocrStatusText.textContent = 'Sube una foto para extraer automáticamente S/N y REF.';
+            ocrStatusBanner.className = 'mt-3 text-xs p-2.5 rounded-lg bg-slate-100 text-slate-600 flex items-center gap-2';
+        });
+
+        btnReanalyze.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentFile) runOCR(currentFile);
+        });
+
+        // OCR Execution
+        async function runOCR(file) {
+            ocrSpinner.classList.remove('hidden');
+            ocrStatusText.textContent = 'Analizando imagen y buscando S/N y REF...';
+            updateSNBadge('processing');
+            updateREFBadge('processing');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch('/api/extract-sn', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+
+                // 1. S/N Processing
+                if (data.success && data.serial_number) {
+                    inputSN.value = data.serial_number;
+                    updateSNBadge('detected');
+                } else {
+                    updateSNBadge('none');
+                }
+
+                // 2. REF Processing
+                if (data.ref_number) {
+                    inputREF.value = data.ref_number;
+                    updateREFBadge('detected');
+                    inputSubject.value = `Avería ${data.ref_number}`;
+                } else if (data.serial_number) {
+                    updateREFBadge('none');
+                    inputSubject.value = `Avería S/N: ${data.serial_number}`;
+                } else {
+                    updateREFBadge('none');
+                }
+
+                updateLivePreview();
+
+                // Status Banner
+                if (data.success) {
+                    ocrStatusText.textContent = data.message || `Datos detectados correctamente.`;
+                    ocrStatusBanner.className = 'mt-3 text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-2';
+                    showToast(data.message || 'Datos detectados con éxito', 'success');
+                } else {
+                    ocrStatusText.textContent = data.message || 'No se detectó un S/N o REF automáticamente. Puedes escribirlos manualmente.';
+                    ocrStatusBanner.className = 'mt-3 text-xs p-2.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-2';
+                }
+
+                // Render Candidates
+                candidatesList.innerHTML = '';
+                const allCand = (data.candidates || []).concat(data.ref_candidates || []);
+                const uniqueCand = [...new Set(allCand)];
+
+                if (uniqueCand.length > 1) {
+                    candidatesContainer.classList.remove('hidden');
+                    uniqueCand.forEach(cand => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'px-2.5 py-1 text-xs font-mono font-bold bg-slate-100 hover:bg-agenor-100 hover:text-agenor-700 border border-slate-300 rounded-md transition-colors';
+                        btn.textContent = cand;
+                        btn.addEventListener('click', () => {
+                            inputSubject.value = `Avería ${cand}`;
+                        });
+                        candidatesList.appendChild(btn);
+                    });
+                } else {
+                    candidatesContainer.classList.add('hidden');
+                }
+
+            } catch (err) {
+                console.error(err);
+                updateSNBadge('none');
+                updateREFBadge('none');
+                ocrStatusText.textContent = 'Error durante el análisis OCR. Ingrese los datos manualmente.';
+                ocrStatusBanner.className = 'mt-3 text-xs p-2.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-2';
+            } finally {
+                ocrSpinner.classList.add('hidden');
+            }
+        }
+
+        function updateSNBadge(status) {
+            if (status === 'detected') {
+                snBadge.textContent = 'Detectado';
+                snBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
+            } else if (status === 'processing') {
+                snBadge.textContent = 'Analizando...';
+                snBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 animate-pulse';
+            } else if (status === 'manual') {
+                snBadge.textContent = 'Manual';
+                snBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700';
+            } else {
+                snBadge.textContent = 'Pendiente';
+                snBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500';
+            }
+        }
+
+        function updateREFBadge(status) {
+            if (status === 'detected') {
+                refBadge.textContent = 'Detectado';
+                refBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
+            } else if (status === 'processing') {
+                refBadge.textContent = 'Analizando...';
+                refBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 animate-pulse';
+            } else if (status === 'manual') {
+                refBadge.textContent = 'Manual';
+                refBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700';
+            } else {
+                refBadge.textContent = 'Pendiente';
+                refBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500';
+            }
+        }
+
+        inputSN.addEventListener('input', () => {
+            updateSNBadge(inputSN.value.trim() ? 'manual' : 'none');
+            updateLivePreview();
+        });
+
+        inputREF.addEventListener('input', () => {
+            const val = inputREF.value.trim();
+            updateREFBadge(val ? 'manual' : 'none');
+            if (val) {
+                inputSubject.value = `Avería ${val}`;
+            }
+            updateLivePreview();
+        });
+
+        inputText.addEventListener('input', () => {
+            updateLivePreview();
+        });
+
+        // Send Email Handler
+        btnSendEmail.addEventListener('click', async () => {
+            const recipient = inputRecipient.value.trim();
+            const sn = inputSN.value.trim();
+            const ref = inputREF.value.trim();
+            const text = inputText.value.trim();
+            const subject = inputSubject.value.trim();
+            const attach = checkAttach.checked;
+
+            if (!recipient) {
+                showToast('Por favor, indica una dirección de correo de destino.', 'error');
+                inputRecipient.focus();
+                return;
+            }
+
+            // Set button loading
+            btnSendEmail.disabled = true;
+            btnSendText.textContent = 'Enviando correo por Outlook...';
+            sendSpinner.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('sn', sn);
+            formData.append('ref', ref);
+            formData.append('text', text);
+            formData.append('recipient', recipient);
+            formData.append('subject', subject);
+            formData.append('attach_image', attach);
+            if (attach && currentFile) {
+                formData.append('file', currentFile);
+            }
+
+            try {
+                const resp = await fetch('/api/send-email', {
+                    method: 'POST',
+                    body: formData
+                });
+                const res = await resp.json();
+
+                if (res.success) {
+                    showToast(res.message || 'Correo enviado exitosamente vía Outlook', 'success');
+                } else {
+                    showToast(res.message || 'Error al enviar correo', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Error de conexión con el servidor al enviar el correo.', 'error');
+            } finally {
+                btnSendEmail.disabled = false;
+                btnSendText.textContent = 'Enviar Correo de Avería vía Outlook 365';
+                sendSpinner.classList.add('hidden');
+            }
+        });
+
+        // Settings Modal Handling
+        btnOpenSettings.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+        [btnCloseSettings, btnCancelSettings].forEach(btn => {
+            btn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+        });
+
+        btnSaveSettings.addEventListener('click', async () => {
+            const updated = {
+                default_recipient: cfgRecipient.value.trim(),
+                subject_prefix: cfgSubjectPrefix.value.trim(),
+                email_method: cfgEmailMethod.value
+            };
+
+            try {
+                const resp = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updated)
+                });
+                const res = await resp.json();
+                if (res.success) {
+                    inputRecipient.value = updated.default_recipient;
+                    showToast('Configuración guardada correctamente', 'success');
+                    settingsModal.classList.add('hidden');
+                }
+            } catch (err) {
+                showToast('Error guardando la configuración', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

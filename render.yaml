@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: averias-electromedicina
+    runtime: docker
+    plan: free
+    region: frankfurt # Servidor en Europa (Alemania) más rápido
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEFAULT_RECIPIENT
+        value: clientes.sistemas.medicos@philips.com
+      - key: EMAIL_METHOD
+        value: smtp
+      - key: SMTP_HOST
+        value: smtp.office365.com
+      - key: SMTP_PORT
+        value: "587"
+      # Configura tu usuario y contraseña de correo en el panel de Render o en las variables de entorno
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
