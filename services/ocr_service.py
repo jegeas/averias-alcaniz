@@ -72,7 +72,6 @@ class OCRService:
                 payload_bytes = image_bytes
 
             b64_image = base64.b64encode(payload_bytes).decode("utf-8")
-            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
             prompt = (
                 "Eres un experto en lectura e inventario de etiquetas de electromedicina y equipamiento hospitalario.\n"
@@ -112,15 +111,44 @@ class OCRService:
                 }
             }
 
+            candidate_models = [
+                "gemini-2.0-flash",
+                "gemini-2.5-flash",
+                "gemini-1.5-flash-latest",
+                "gemini-flash",
+                "gemini-2.0-flash-exp",
+                "gemini-2.5-pro",
+                "gemini-1.5-flash"
+            ]
+
             headers = {
                 "Content-Type": "application/json",
                 "x-goog-api-key": clean_key
             }
 
-            resp = requests.post(url, json=payload, headers=headers, timeout=8)
+            resp = None
+            used_model = ""
+
+            for model_name in candidate_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+                try:
+                    resp = requests.post(url, json=payload, headers=headers, timeout=6)
+                    if resp.status_code == 200:
+                        used_model = model_name
+                        break
+                    elif resp.status_code == 404:
+                        # Model not available in this region/version, try next
+                        continue
+                    else:
+                        # If 400/401/403, break and report
+                        used_model = model_name
+                        break
+                except requests.exceptions.RequestException:
+                    continue
+
             elapsed = round(time.time() - t0, 2)
 
-            if resp.status_code == 200:
+            if resp and resp.status_code == 200:
                 data = resp.json()
                 candidates_obj = data.get("candidates", [])
                 if candidates_obj and "content" in candidates_obj[0]:
@@ -147,7 +175,7 @@ class OCRService:
                             if ref:
                                 msg_parts.append(f"REF: {ref}")
 
-                            logs.append(f"[OK] Gemini: Respuesta exitosa en {elapsed}s. S/N: {sn} | REF: {ref}")
+                            logs.append(f"[OK] Gemini ({used_model}): Respuesta exitosa en {elapsed}s. S/N: {sn} | REF: {ref}")
 
                             return {
                                 "success": True,
@@ -156,7 +184,7 @@ class OCRService:
                                 "candidates": all_sn_cand,
                                 "ref_candidates": all_ref_cand,
                                 "barcodes": [],
-                                "extracted_text": f"Google Gemini Vision ({elapsed}s):\nS/N: {sn}\nREF: {ref}",
+                                "extracted_text": f"Google Gemini ({used_model}, {elapsed}s):\nS/N: {sn}\nREF: {ref}",
                                 "confidence": "high",
                                 "engine": "gemini_vision",
                                 "message": f"IA Gemini Detectado: {' | '.join(msg_parts)}",
@@ -165,11 +193,12 @@ class OCRService:
                             }
             else:
                 err_msg = ""
+                status_code = resp.status_code if resp else "timeout"
                 try:
-                    err_msg = resp.json().get("error", {}).get("message", resp.text[:120])
+                    err_msg = resp.json().get("error", {}).get("message", resp.text[:120]) if resp else "Sin conexion"
                 except Exception:
-                    err_msg = resp.text[:120]
-                logs.append(f"[AVISO] Gemini: HTTP {resp.status_code} ({err_msg}). Usando motor local...")
+                    err_msg = resp.text[:120] if resp else "Sin respuesta"
+                logs.append(f"[AVISO] Gemini: HTTP {status_code} ({err_msg}). Usando motor local...")
         except Exception as e:
             logs.append(f"[AVISO] Gemini: Excepcion ({str(e)}). Usando motor local...")
 
