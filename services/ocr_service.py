@@ -62,14 +62,17 @@ class OCRService:
         try:
             img = Image.open(io.BytesIO(image_bytes))
             w, h = img.size
-            if max(w, h) > 1600:
-                scale = 1600.0 / max(w, h)
+            # Optimize image size for ultra-fast upload (1024px is plenty for crisp OCR)
+            if max(w, h) > 1024:
+                scale = 1024.0 / max(w, h)
                 img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
                 buf = io.BytesIO()
-                img.convert("RGB").save(buf, format="JPEG", quality=85)
+                img.convert("RGB").save(buf, format="JPEG", quality=80)
                 payload_bytes = buf.getvalue()
             else:
-                payload_bytes = image_bytes
+                buf = io.BytesIO()
+                img.convert("RGB").save(buf, format="JPEG", quality=80)
+                payload_bytes = buf.getvalue()
 
             b64_image = base64.b64encode(payload_bytes).decode("utf-8")
 
@@ -114,11 +117,9 @@ class OCRService:
             candidate_models = [
                 "gemini-2.0-flash",
                 "gemini-2.5-flash",
-                "gemini-1.5-flash-latest",
                 "gemini-flash",
-                "gemini-2.0-flash-exp",
-                "gemini-2.5-pro",
-                "gemini-1.5-flash"
+                "gemini-1.5-flash-latest",
+                "gemini-2.0-flash-lite"
             ]
 
             headers = {
@@ -132,18 +133,22 @@ class OCRService:
             for model_name in candidate_models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
                 try:
-                    resp = requests.post(url, json=payload, headers=headers, timeout=6)
+                    resp = requests.post(url, json=payload, headers=headers, timeout=(3.0, 6.0))
                     if resp.status_code == 200:
                         used_model = model_name
                         break
                     elif resp.status_code == 404:
-                        # Model not available in this region/version, try next
+                        # Try next model
                         continue
                     else:
-                        # If 400/401/403, break and report
+                        # 400, 401, 403
                         used_model = model_name
                         break
-                except requests.exceptions.RequestException:
+                except requests.exceptions.Timeout:
+                    logs.append(f"[AVISO] Gemini: Timeout intentando con {model_name}.")
+                    continue
+                except requests.exceptions.RequestException as req_err:
+                    logs.append(f"[AVISO] Gemini: Error de red con {model_name} ({str(req_err)[:60]}).")
                     continue
 
             elapsed = round(time.time() - t0, 2)
