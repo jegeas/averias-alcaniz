@@ -599,12 +599,20 @@
 
                 // Status Banner
                 if (data.success) {
-                    ocrStatusText.textContent = data.message || `Datos detectados correctamente.`;
-                    ocrStatusBanner.className = 'mt-3 text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-2';
+                    const isGemini = (data.engine === 'gemini_vision' || (data.message && data.message.includes('IA Gemini')));
+                    const iconName = isGemini ? 'sparkles' : 'check-circle';
+                    const bannerClass = isGemini ? 
+                        'mt-3 text-xs p-2.5 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 flex items-center gap-2 font-medium' :
+                        'mt-3 text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-2';
+                    
+                    ocrStatusBanner.className = bannerClass;
+                    ocrStatusBanner.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 shrink-0 text-purple-600"></i><span id="ocrStatusText">${data.message || 'Datos detectados correctamente.'}</span>`;
+                    lucide.createIcons({ targets: [ocrStatusBanner] });
                     showToast(data.message || 'Datos detectados con éxito', 'success');
                 } else {
-                    ocrStatusText.textContent = data.message || 'No se detectó un S/N o REF automáticamente. Puedes escribirlos manualmente.';
                     ocrStatusBanner.className = 'mt-3 text-xs p-2.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-2';
+                    ocrStatusBanner.innerHTML = `<i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-amber-600"></i><span id="ocrStatusText">${data.message || 'No se detectó un S/N o REF automáticamente.'}</span>`;
+                    lucide.createIcons({ targets: [ocrStatusBanner] });
                 }
 
                 // Render Candidates

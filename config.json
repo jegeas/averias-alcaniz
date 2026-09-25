@@ -1,0 +1,13 @@
+{
+  "default_recipient": "clientes.sistemas.medicos@philips.com",
+  "subject_prefix": "Avería",
+  "default_body_template": "Me llamo Joaquín Egea Serrano. Soy el técnico de electromedicina del hospital de Alcañiz. El motivo del correo es informar de la avería del equipo {ref} con número de serie {sn}. La avería detectada es {text}.\n\nQuedo a su disposición para resolver cualquier duda.\nUn cordial saludo.",
+  "attach_image": true,
+  "email_method": "outlook_com",
+  "smtp_host": "smtp.office365.com",
+  "smtp_port": 587,
+  "smtp_user": "",
+  "smtp_password": "",
+  "port": 8000,
+  "host": "0.0.0.0"
+}

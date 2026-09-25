@@ -27,8 +27,8 @@ class TestAppServices(unittest.TestCase):
         self.assertIn("862199 M2703A", html)
         self.assertIn("Referencia (REF)", html)
         self.assertIn("Equipo revisado correctamente", html)
-        self.assertIn("Registro de Equipo", html)
-        self.assertIn("Se ha adjuntado la fotografía", html)
+        self.assertIn("Aviso de Avería", html)
+        self.assertIn("Joaquín Egea Serrano", html)
 
     def test_ocr_extraction_sn_and_ref(self):
         img = Image.new("RGB", (600, 250), color=(255, 255, 255))
