@@ -45,17 +45,18 @@ class OCRService:
     def _extract_with_gemini_vision(cls, image_bytes: bytes, api_key: str, logs: List[str]) -> Optional[Dict[str, Any]]:
         """
         Extracts S/N and REF using Google Gemini Vision API.
+        Supports both new AQ. (Auth keys) and legacy AIza keys.
         """
         clean_key = (api_key or "").strip()
         if not clean_key:
             logs.append("[INFO] Gemini: No se ha configurado API Key.")
             return None
 
-        if not clean_key.startswith("AIzaSy"):
-            logs.append(f"[AVISO] Gemini: La API Key configurada ('{clean_key[:8]}...') no es valida. Las claves oficiales de Google empiezan por 'AIzaSy'.")
+        if len(clean_key) < 10:
+            logs.append(f"[AVISO] Gemini: La clave configurada es demasiado corta ('{clean_key}').")
             return None
 
-        logs.append("[INICIO] Gemini: Enviando imagen al modelo Google Gemini 1.5/2.0 Flash Vision...")
+        logs.append("[INICIO] Gemini: Conectando con Google Gemini Vision...")
         t0 = time.time()
 
         try:
@@ -71,7 +72,7 @@ class OCRService:
                 payload_bytes = image_bytes
 
             b64_image = base64.b64encode(payload_bytes).decode("utf-8")
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={clean_key}"
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
             prompt = (
                 "Eres un experto en lectura e inventario de etiquetas de electromedicina y equipamiento hospitalario.\n"
@@ -111,7 +112,12 @@ class OCRService:
                 }
             }
 
-            resp = requests.post(url, json=payload, timeout=8)
+            headers = {
+                "Content-Type": "application/json",
+                "x-goog-api-key": clean_key
+            }
+
+            resp = requests.post(url, json=payload, headers=headers, timeout=8)
             elapsed = round(time.time() - t0, 2)
 
             if resp.status_code == 200:
@@ -158,9 +164,14 @@ class OCRService:
                                 "logs": logs
                             }
             else:
-                logs.append(f"[AVISO] Gemini: Error HTTP {resp.status_code} ({resp.text[:100]}). Usando motor local de respaldo...")
+                err_msg = ""
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", resp.text[:120])
+                except Exception:
+                    err_msg = resp.text[:120]
+                logs.append(f"[AVISO] Gemini: HTTP {resp.status_code} ({err_msg}). Usando motor local...")
         except Exception as e:
-            logs.append(f"[AVISO] Gemini: Excepcion ({str(e)}). Usando motor local de respaldo...")
+            logs.append(f"[AVISO] Gemini: Excepcion ({str(e)}). Usando motor local...")
 
         return None
 
