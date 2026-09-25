@@ -115,9 +115,10 @@ class OCRService:
             }
 
             candidate_models = [
-                "gemini-2.0-flash",
+                "gemini-3-flash-preview",
                 "gemini-2.5-flash",
                 "gemini-flash",
+                "gemini-2.0-flash",
                 "gemini-1.5-flash-latest",
                 "gemini-2.0-flash-lite"
             ]
@@ -133,7 +134,7 @@ class OCRService:
             for model_name in candidate_models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
                 try:
-                    resp = requests.post(url, json=payload, headers=headers, timeout=(3.0, 6.0))
+                    resp = requests.post(url, json=payload, headers=headers, timeout=(5.0, 10.0))
                     if resp.status_code == 200:
                         used_model = model_name
                         break
