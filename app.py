@@ -187,16 +187,35 @@ async def send_email(
             image_filename=image_name
         )
     else:
-        # Default to local Outlook 365
-        result = EmailService.send_via_outlook_com(
-            to=target_recipient,
-            subject=target_subject,
-            sn=clean_sn,
-            text=text,
-            ref=clean_ref,
-            image_bytes=image_bytes,
-            image_filename=image_name
-        )
+        # Outlook 365 Method
+        if os.name == "nt":
+            result = EmailService.send_via_outlook_com(
+                to=target_recipient,
+                subject=target_subject,
+                sn=clean_sn,
+                text=text,
+                ref=clean_ref,
+                image_bytes=image_bytes,
+                image_filename=image_name
+            )
+        else:
+            # On Linux / Cloud (Render), prepare official Outlook Web & Mailto links
+            import urllib.parse
+            body_text = f"Me llamo Joaquín Egea Serrano. Soy el técnico de electromedicina del hospital de Alcañiz. El motivo del correo es informar de la avería del equipo {clean_ref or '[REF]'} con número de serie {clean_sn or '[S/N]'}. La avería detectada es {text.strip()}.\n\nQuedo a su disposición para resolver cualquier duda.\nUn cordial saludo."
+            encoded_to = urllib.parse.quote(target_recipient)
+            encoded_subj = urllib.parse.quote(target_subject)
+            encoded_body = urllib.parse.quote(body_text)
+            
+            outlook_web_url = f"https://outlook.office.com/mail/deeplink/compose?to={encoded_to}&subject={encoded_subj}&body={encoded_body}"
+            mailto_url = f"mailto:{target_recipient}?subject={encoded_subj}&body={encoded_body}"
+            
+            result = {
+                "success": True,
+                "action": "open_outlook",
+                "outlook_web_url": outlook_web_url,
+                "mailto_url": mailto_url,
+                "message": "Abriendo Outlook 365 con el mensaje preparado..."
+            }
 
     return JSONResponse(content=result)
 
