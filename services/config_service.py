@@ -46,9 +46,6 @@ class ConfigService:
             config["default_recipient"] = os.environ["DEFAULT_RECIPIENT"]
         if "EMAIL_METHOD" in os.environ:
             config["email_method"] = os.environ["EMAIL_METHOD"]
-        elif os.name != "nt":
-            # On Linux / Cloud containers, default to SMTP
-            config["email_method"] = "smtp"
         if "SMTP_HOST" in os.environ:
             config["smtp_host"] = os.environ["SMTP_HOST"]
         if "SMTP_PORT" in os.environ:
