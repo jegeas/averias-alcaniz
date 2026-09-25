@@ -358,7 +358,7 @@
                         <i data-lucide="sparkles" class="w-4 h-4 text-purple-600"></i>
                         Google Gemini Vision API Key (Opcional - Máxima Precisión)
                     </label>
-                    <input type="password" id="cfgGeminiKey" value="{{ config.gemini_api_key or '' }}" placeholder="AIzaSy..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-mono" />
+                    <input type="password" id="cfgGeminiKey" value="{{ config.gemini_api_key or '' }}" placeholder="AQ... o AIzaSy..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-mono" />
                     <p class="text-xs text-slate-400 mt-1">Si se introduce, utiliza Inteligencia Artificial de Google para escanear etiquetas con un 99.9% de precisión.</p>
                 </div>
             </div>
@@ -794,7 +794,21 @@
         });
 
         // Settings Modal Handling
-        btnOpenSettings.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+        btnOpenSettings.addEventListener('click', async () => {
+            try {
+                const resp = await fetch('/api/config');
+                const cfg = await resp.json();
+                if (cfg) {
+                    if (cfgRecipient) cfgRecipient.value = cfg.default_recipient || '';
+                    if (cfgSubjectPrefix) cfgSubjectPrefix.value = cfg.subject_prefix || '';
+                    if (cfgEmailMethod) cfgEmailMethod.value = cfg.email_method || 'outlook_com';
+                    if (cfgGeminiKey) cfgGeminiKey.value = cfg.gemini_api_key || '';
+                }
+            } catch (e) {
+                console.error("Error loading config:", e);
+            }
+            settingsModal.classList.remove('hidden');
+        });
         [btnCloseSettings, btnCancelSettings].forEach(btn => {
             btn.addEventListener('click', () => settingsModal.classList.add('hidden'));
         });
