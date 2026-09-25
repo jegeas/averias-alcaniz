@@ -60,6 +60,10 @@ class ConfigService:
             config["smtp_user"] = os.environ["SMTP_USER"]
         if "SMTP_PASSWORD" in os.environ:
             config["smtp_password"] = os.environ["SMTP_PASSWORD"]
+        if "GEMINI_API_KEY" in os.environ:
+            config["gemini_api_key"] = os.environ["GEMINI_API_KEY"].strip()
+        elif "GOOGLE_API_KEY" in os.environ:
+            config["gemini_api_key"] = os.environ["GOOGLE_API_KEY"].strip()
 
         return config
 

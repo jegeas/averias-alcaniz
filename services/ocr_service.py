@@ -1,6 +1,9 @@
 import os
 import re
 import io
+import json
+import base64
+import requests
 from typing import Dict, List, Any, Optional, Tuple
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import numpy as np
@@ -37,6 +40,103 @@ except Exception:
 
 
 class OCRService:
+    @classmethod
+    def _extract_with_gemini_vision(cls, image_bytes: bytes, api_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Extracts S/N and REF with near 100% precision using Google Gemini Flash Vision API.
+        """
+        if not api_key:
+            return None
+
+        try:
+            b64_image = base64.b64encode(image_bytes).decode("utf-8")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+
+            prompt = (
+                "Eres un experto en lectura de etiquetas técnicas de electromedicina y mantenimiento hospitalario.\n"
+                "Analiza la imagen de la etiqueta adjunta con máxima precisión y extrae:\n"
+                "1. 'serial_number': El Número de Serie exacto (identificado como S/N, SN, Serial Number, Nº Serie, etc.).\n"
+                "2. 'ref_number': El Número de Referencia o Modelo (identificado como REF, Reference, Model, Service#, etc.).\n"
+                "3. 'candidates': Lista con números de serie adicionales o códigos secundarios si los hay.\n"
+                "4. 'ref_candidates': Lista con referencias o códigos de modelo secundarios si los hay.\n\n"
+                "Responde ÚNICAMENTE un JSON válido con esta estructura exacta:\n"
+                "{\n"
+                '  "serial_number": "...",\n'
+                '  "ref_number": "...",\n'
+                '  "candidates": ["..."],\n'
+                '  "ref_candidates": ["..."],\n'
+                '  "confidence": "high"\n'
+                "}\n"
+                "Si algún campo no aparece en la imagen, déjalo como cadena vacía \"\"."
+            )
+
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {
+                                "inlineData": {
+                                    "mimeType": "image/jpeg",
+                                    "data": b64_image
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "temperature": 0.0
+                }
+            }
+
+            resp = requests.post(url, json=payload, timeout=12)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates_obj = data.get("candidates", [])
+                if candidates_obj and "content" in candidates_obj[0]:
+                    parts = candidates_obj[0]["content"].get("parts", [])
+                    if parts and "text" in parts[0]:
+                        raw_text = parts[0]["text"].strip()
+                        if raw_text.startswith("```"):
+                            raw_text = re.sub(r"^```(?:json)?\n?", "", raw_text)
+                            raw_text = re.sub(r"\n?```$", "", raw_text)
+                        parsed = json.loads(raw_text)
+
+                        sn = str(parsed.get("serial_number", "")).strip()
+                        ref = str(parsed.get("ref_number", "")).strip()
+                        cand = parsed.get("candidates", [])
+                        ref_cand = parsed.get("ref_candidates", [])
+
+                        if sn or ref:
+                            all_sn_cand = ([sn] if sn else []) + [c for c in cand if c and c != sn]
+                            all_ref_cand = ([ref] if ref else []) + [r for r in ref_cand if r and r != ref]
+
+                            msg_parts = []
+                            if sn:
+                                msg_parts.append(f"S/N: {sn}")
+                            if ref:
+                                msg_parts.append(f"REF: {ref}")
+
+                            return {
+                                "success": True,
+                                "serial_number": sn,
+                                "ref_number": ref,
+                                "candidates": all_sn_cand,
+                                "ref_candidates": all_ref_cand,
+                                "barcodes": [],
+                                "extracted_text": f"Google Gemini Vision Detection:\nS/N: {sn}\nREF: {ref}",
+                                "confidence": "high",
+                                "engine": "gemini_vision",
+                                "message": f"IA Gemini Detectado: {' | '.join(msg_parts)}"
+                            }
+            else:
+                print(f"Gemini Vision API status {resp.status_code}: {resp.text}")
+        except Exception as e:
+            print(f"Gemini Vision error: {e}. Falling back to local OCR pipeline.")
+
+        return None
+
     @staticmethod
     def _find_label_crops(image: Image.Image) -> List[Image.Image]:
         """
@@ -59,11 +159,9 @@ class OCRService:
             candidate_boxes = []
             for cnt in contours:
                 x, y, w, h = cv2.boundingRect(cnt)
-                # Select rectangular regions of interest (labels, sticker boxes)
                 if (w > w_img * 0.18 and h > h_img * 0.03 and (w * h) < (w_img * h_img * 0.85)):
                     candidate_boxes.append((w * h, x, y, w, h))
 
-            # Sort by area descending and pick top 4
             candidate_boxes.sort(key=lambda item: item[0], reverse=True)
             for _, x, y, w, h in candidate_boxes[:4]:
                 pad_x = int(w * 0.05)
@@ -85,7 +183,6 @@ class OCRService:
         variations = []
         w, h = crop_img.size
         
-        # Scale small crops so font is sharp for Tesseract
         if w < 1200 or h < 600:
             scale = max(2.0, 1400.0 / max(w, h))
             scaled = crop_img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
@@ -118,7 +215,6 @@ class OCRService:
                 raw_data = item.data.decode("utf-8", errors="ignore").strip()
                 btype = item.type
                 
-                # If QR contains inventory text with blank NSerie, ignore blank
                 if "NSerie" in raw_data and not re.search(r"(?i)NSerie\s*[:=\s#-]+\s*([A-Za-z0-9\-_]+)", raw_data):
                     sn_match = re.search(r"(?i)(?:SN|S/N|NSerie)\s*[:=\s#-]+\s*([A-Za-z0-9\-_]+)", raw_data)
                     if sn_match:
@@ -135,24 +231,15 @@ class OCRService:
     @staticmethod
     def _normalize_text(text: str) -> str:
         """
-        Normalizes OCR misrecognized characters in S/N and REF headers:
-        - '[SN]', '\[SN\]', '([SN]', '|SN|' -> 'SN:'
-        - '[REF]', '\[REF\]', '|REF|' -> 'REF:'
-        - 'SIN:', 'S1N:', 'S/N.', 'S/ N' -> 'S/N:'
-        - 'Serial No', 'Serial Number', 'Serial#' -> 'Serial Number:'
+        Normalizes OCR misrecognized characters in S/N and REF headers.
         """
         normalized = text
-        # Replace medical symbol [SN], |SN|, (SN), \[SN\] with SN:
         normalized = re.sub(r"(?i)(?:[\\\|\(\[\{]|\b)SN[\\\|\)\]\}]", "SN: ", normalized)
         normalized = re.sub(r"(?i)(?:[\\\|\(\[\{]|\b)S\s*[\/\.]\s*N[\\\|\)\]\}]", "S/N: ", normalized)
-        # Replace medical symbol [REF], |REF|, (REF) with REF:
         normalized = re.sub(r"(?i)(?:[\\\|\(\[\{]|\b)REF[\\\|\)\]\}]", "REF: ", normalized)
-        # Replace SIN: or S1N: at start of line/word with S/N:
         normalized = re.sub(r"(?i)\bS[I1|l!]\s*[\/\.,;: -]\s*N\b", "S/N", normalized)
         normalized = re.sub(r"(?i)\bS[I1|l!]\s*N\b", "SN", normalized)
-        # Normalize Serial No / Serial Number / Serial#
         normalized = re.sub(r"(?i)\bSerial\s*(?:Number|No\.?|Num\.?|#)?\b", "Serial Number", normalized)
-        # Normalize Nº Serie / N. Serie / N/S
         normalized = re.sub(r"(?i)\bN[a-zA-Z0-9º°\.\-\/]*\s*(?:de\s+)?serie\b", "S/N", normalized)
         return normalized
 
@@ -183,25 +270,13 @@ class OCRService:
     @staticmethod
     def _parse_serial_numbers(text_passes: List[str]) -> List[Dict[str, Any]]:
         """
-        Parses text specifically searching for the exact requested keys:
-        - 'SN'
-        - 'Serial Number'
-        - 'S/N'
+        Parses text specifically searching for the exact requested keys.
         """
         regex_patterns = [
-            # 1. 'S/N' or 'S / N' or 'S.N.' (e.g. S/N: DE78743189, S/N - 12345)
             (r"(?i)\bS\s*[\/\.]\s*N[ \t]*[\.:=\s#-]+[ \t]*([A-Za-z0-9\-_./]+)", 350, "S/N"),
-            
-            # 2. 'Serial Number' or 'Serial No' or 'Serial'
             (r"(?i)\bSerial(?:[ \t]*(?:Number|Numbers|No|Num|#))?[ \t]*[\.:=\s#-]+[ \t]*([A-Za-z0-9\-_./]+)", 350, "Serial Number"),
-            
-            # 3. 'SN' (e.g. SN: DE78743189, SN DE78743189, [SN] DE78743189)
             (r"(?i)\bSN[ \t]*[\.:=\s#-]+[ \t]*([A-Za-z0-9\-_./]+)", 350, "SN"),
-            
-            # 4. GS1 / UDI Application Identifier (21) or (S)
             (r"(?i)\((?:21|S)\)[ \t]*([A-Za-z0-9\-_./]{3,25})", 250, "(21) SN"),
-            
-            # 5. Direct SN attached prefix (e.g. SN123456789)
             (r"(?i)\bSN([0-9][A-Za-z0-9\-_]{3,25})\b", 200, "SN prefix"),
         ]
 
@@ -223,16 +298,13 @@ class OCRService:
                 for pattern, base_score, source_label in regex_patterns:
                     for match in re.finditer(pattern, line_str):
                         raw_val = match.group(1).strip()
-                        # Clean spaces and edge punctuation
                         clean_val = re.sub(r"\s+", "", raw_val)
                         clean_val = re.sub(r"^[^\w]+|[^\w]+$", "", clean_val).upper()
 
-                        # Truncate if hit next keyword on the line
                         for sw in ["REF", "FECHA", "MOD", "MODEL", "DATE", "MADE", "COD", "LOTE", "LOT", "BATCH", "SERVICE", "GS1"]:
                             if sw in clean_val and not clean_val.startswith(sw):
                                 clean_val = clean_val.split(sw)[0].strip()
 
-                        # Filter invalid tokens
                         if len(clean_val) >= 3 and clean_val.lower() not in stop_words:
                             current_score = candidate_scores.get(clean_val, 0)
                             candidate_scores[clean_val] = current_score + base_score
@@ -240,7 +312,6 @@ class OCRService:
                                 candidate_matches[clean_val] = match.group(0).strip()
                                 candidate_sources[clean_val] = source_label
 
-        # Build sorted list
         candidates = []
         for val, score in candidate_scores.items():
             candidates.append({
@@ -259,9 +330,7 @@ class OCRService:
         Parses text specifically searching for the 'REF' / 'REFERENCE' / 'REFERENCIA' key.
         """
         ref_patterns = [
-            # 1. REF: value (can be multiple words e.g. '862199 M2703A' or 'RX-500')
             r"(?i)(?:[\\\|\(\[\{]|\b)REF[\\\|\)\]\}]?[ \t]*[\.:=\s#-]+[ \t]*([A-Za-z0-9\-_./]+(?:[ \t]+[A-Za-z0-9\-_./]+)?)",
-            # 2. Reference / Referencia
             r"(?i)\bReferenc(?:e|ia)[ \t]*[\.:=\s#-]+[ \t]*([A-Za-z0-9\-_./]+(?:[ \t]+[A-Za-z0-9\-_./]+)?)"
         ]
 
@@ -284,7 +353,6 @@ class OCRService:
                         raw_val = match.group(1).strip()
                         clean_val = re.sub(r"^[^\w]+|[^\w]+$", "", raw_val).strip()
 
-                        # Truncate if line continues into SN, Service#, GS1, Date, etc.
                         for sw in ["SN", "S/N", "SERVICE", "GS1", "DATE", "FECHA", "LOT", "BATCH", "MADE"]:
                             match_sw = re.search(rf"(?i)\b{sw}\b", clean_val)
                             if match_sw and match_sw.start() > 0:
@@ -309,10 +377,18 @@ class OCRService:
         return candidates
 
     @classmethod
-    def extract_from_image_bytes(cls, image_bytes: bytes) -> Dict[str, Any]:
+    def extract_from_image_bytes(cls, image_bytes: bytes, api_key: Optional[str] = None) -> Dict[str, Any]:
         """
-        Main entrypoint: extracts Serial Number (SN/S/N) and Reference (REF) from raw image bytes.
+        Main entrypoint:
+        1. If Gemini API Key is provided, uses Google Gemini Vision (highest accuracy).
+        2. Fallback to local Tesseract OCR and OpenCV pipeline.
         """
+        effective_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if effective_key:
+            gemini_result = cls._extract_with_gemini_vision(image_bytes, effective_key.strip())
+            if gemini_result and gemini_result.get("success"):
+                return gemini_result
+
         result = {
             "success": False,
             "serial_number": "",
