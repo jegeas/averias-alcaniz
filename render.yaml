@@ -19,3 +19,5 @@ services:
         sync: false
       - key: SMTP_PASSWORD
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false

@@ -49,6 +49,7 @@ class ConfigUpdateRequest(BaseModel):
     smtp_port: Optional[int] = 587
     smtp_user: Optional[str] = ""
     smtp_password: Optional[str] = ""
+    gemini_api_key: Optional[str] = ""
 
 
 import socket
@@ -115,7 +116,9 @@ async def extract_sn(file: UploadFile = File(...)):
         if not contents:
             raise HTTPException(status_code=400, detail="El archivo subido está vacío.")
         
-        result = OCRService.extract_from_image_bytes(contents)
+        config = ConfigService.load_config()
+        api_key = config.get("gemini_api_key", None)
+        result = OCRService.extract_from_image_bytes(contents, api_key=api_key)
         return JSONResponse(content=result)
     except Exception as e:
         return JSONResponse(
