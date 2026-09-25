@@ -779,7 +779,16 @@
                 const res = await resp.json();
 
                 if (res.success) {
-                    showToast(res.message || 'Correo enviado exitosamente vía Outlook', 'success');
+                    if (res.action === 'open_outlook' && res.outlook_web_url) {
+                        // Attempt to open Outlook 365 Web in new tab, or fallback to mailto
+                        const win = window.open(res.outlook_web_url, '_blank');
+                        if (!win || win.closed || typeof win.closed === 'undefined') {
+                            window.location.href = res.mailto_url;
+                        }
+                        showToast('Abriendo Outlook 365 con el aviso de avería...', 'success');
+                    } else {
+                        showToast(res.message || 'Correo enviado exitosamente vía Outlook', 'success');
+                    }
                 } else {
                     showToast(res.message || 'Error al enviar correo', 'error');
                 }
