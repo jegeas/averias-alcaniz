@@ -338,21 +338,49 @@ $mail.HTMLBody = @'
                 part.add_header("Content-Disposition", f'attachment; filename="{image_filename}"')
                 msg.attach(part)
 
-            server = smtplib.SMTP(host, port)
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
+            print(f"[SMTP] Iniciando envio hacia {to} usando servidor {host}:{port} (remitente: {user})...", flush=True)
+
+            if port == 465:
+                server = smtplib.SMTP_SSL(host, port, timeout=12)
+                server.ehlo()
+            else:
+                server = smtplib.SMTP(host, port, timeout=12)
+                server.ehlo()
+                print("[SMTP] Iniciando STARTTLS...", flush=True)
+                server.starttls()
+                server.ehlo()
+
+            print(f"[SMTP] Autenticando usuario {user}...", flush=True)
             server.login(user, password)
+
+            print(f"[SMTP] Transmitiendo mensaje a {to}...", flush=True)
             server.sendmail(user, [to], msg.as_string())
             server.quit()
+            print("[SMTP] Correo enviado y conexion cerrada con exito.", flush=True)
 
             return {
                 "success": True,
                 "message": f"Correo enviado exitosamente vía SMTP a: {to}",
                 "method": "smtp"
             }
-        except Exception as e:
+        except smtplib.SMTPAuthenticationError as auth_err:
+            err_text = f"Error de autenticación SMTP (usuario/contraseña incorrectos o SMTP deshabilitado en su cuenta): {auth_err.smtp_error.decode('utf-8', errors='ignore') if isinstance(auth_err.smtp_error, bytes) else str(auth_err)}"
+            print(f"[SMTP ERROR] {err_text}", flush=True)
             return {
                 "success": False,
-                "message": f"Error al enviar correo por SMTP: {str(e)}"
+                "message": err_text
+            }
+        except smtplib.SMTPConnectError as conn_err:
+            err_text = f"No se pudo conectar con el servidor SMTP {host}:{port}. Verifique el puerto o la conexión."
+            print(f"[SMTP ERROR] {err_text} Detalle: {conn_err}", flush=True)
+            return {
+                "success": False,
+                "message": err_text
+            }
+        except Exception as e:
+            err_text = f"Error al enviar correo por SMTP: {str(e)}"
+            print(f"[SMTP ERROR] {err_text}", flush=True)
+            return {
+                "success": False,
+                "message": err_text
             }
