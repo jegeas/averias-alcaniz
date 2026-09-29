@@ -384,3 +384,84 @@ $mail.HTMLBody = @'
                 "success": False,
                 "message": err_text
             }
+
+    @classmethod
+    def send_via_resend(
+        cls,
+        to: str,
+        subject: str,
+        sn: str,
+        text: str,
+        api_key: str,
+        ref: str = "",
+        reply_to: Optional[str] = "jegea@agenormantenimientos.com",
+        from_email: str = "Avisos Averias <onboarding@resend.dev>",
+        image_bytes: Optional[bytes] = None,
+        image_filename: str = "foto_equipo.jpg"
+    ) -> Dict[str, Any]:
+        """
+        Sends email via Resend HTTPS REST API.
+        Bypasses Render / Cloud SMTP port blocking (uses port 443 HTTPS).
+        """
+        import requests
+        try:
+            clean_key = (api_key or "").strip()
+            if not clean_key:
+                return {
+                    "success": False,
+                    "message": "Falta configurar la RESEND_API_KEY."
+                }
+
+            html_body = cls.generate_html_body(sn, text, ref=ref, has_attachment=bool(image_bytes))
+            
+            payload: Dict[str, Any] = {
+                "from": from_email,
+                "to": [to],
+                "subject": subject,
+                "html": html_body
+            }
+
+            if reply_to and reply_to.strip():
+                payload["reply_to"] = reply_to.strip()
+            
+            if image_bytes:
+                b64_content = base64.b64encode(image_bytes).decode("utf-8")
+                payload["attachments"] = [
+                    {
+                        "filename": image_filename,
+                        "content": b64_content
+                    }
+                ]
+                
+            headers = {
+                "Authorization": f"Bearer {clean_key}",
+                "Content-Type": "application/json"
+            }
+            
+            print(f"[RESEND] Enviando correo HTTPS hacia {to}...", flush=True)
+            resp = requests.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=10)
+            
+            if resp.status_code in [200, 201]:
+                print(f"[RESEND] Correo enviado exitosamente a {to}.", flush=True)
+                return {
+                    "success": True,
+                    "message": f"Correo enviado exitosamente vía Resend a: {to}",
+                    "method": "resend"
+                }
+            else:
+                try:
+                    err_data = resp.json()
+                    err_msg = err_data.get("message", resp.text)
+                except Exception:
+                    err_msg = resp.text[:150]
+                print(f"[RESEND ERROR] HTTP {resp.status_code}: {err_msg}", flush=True)
+                return {
+                    "success": False,
+                    "message": f"Error de Resend ({resp.status_code}): {err_msg}"
+                }
+        except Exception as e:
+            print(f"[RESEND ERROR] Excepcion: {e}", flush=True)
+            return {
+                "success": False,
+                "message": f"Error de conexión con Resend: {str(e)}"
+            }
