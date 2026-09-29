@@ -271,7 +271,7 @@
                             class="w-full bg-agenor-600 hover:bg-agenor-700 active:bg-agenor-800 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-agenor-500/25 flex items-center justify-center gap-3 transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                             <i data-lucide="send" class="w-5 h-5"></i>
-                            <span id="btnSendText">Enviar Correo de Avería vía Outlook 365</span>
+                            <span id="btnSendText">Enviar Correo de Avería</span>
                             <div id="sendSpinner" class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                         </button>
                     </div>
@@ -347,19 +347,45 @@
 
                 <div>
                     <label class="font-bold text-slate-700 block mb-1">Método de Envío</label>
-                    <select id="cfgEmailMethod" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
-                        <option value="outlook_com" {% if config.email_method == 'outlook_com' %}selected{% endif %}>Cliente Outlook 365 (Recomendado - Sesión activa)</option>
-                        <option value="smtp" {% if config.email_method == 'smtp' %}selected{% endif %}>SMTP Office 365 Directo (Requiere contraseña)</option>
+                    <select id="cfgEmailMethod" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white">
+                        <option value="smtp" {% if config.email_method == 'smtp' %}selected{% endif %}>🚀 Envío Automático por SMTP (Sin abrir ventanas)</option>
+                        <option value="outlook_com" {% if config.email_method == 'outlook_com' %}selected{% endif %}>✉️ Abrir Outlook 365 (Web / App)</option>
                     </select>
+                </div>
+
+                <div id="smtpSettingsSection" class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <h4 class="font-bold text-xs text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                        <i data-lucide="server" class="w-3.5 h-3.5 text-agenor-600"></i>
+                        Credenciales para Envío Automático (SMTP)
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 block mb-1">Servidor SMTP</label>
+                            <input type="text" id="cfgSmtpHost" value="{{ config.smtp_host or 'smtp.office365.com' }}" placeholder="smtp.office365.com" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono" />
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 block mb-1">Puerto</label>
+                            <input type="number" id="cfgSmtpPort" value="{{ config.smtp_port or 587 }}" placeholder="587" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Tu Correo Remitente (Usuario)</label>
+                        <input type="email" id="cfgSmtpUser" value="{{ config.smtp_user or '' }}" placeholder="tu.correo@agenor.com" class="w-full border border-slate-300 rounded-lg p-2 text-xs" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 block mb-1">Contraseña / Contraseña de Aplicación</label>
+                        <input type="password" id="cfgSmtpPassword" value="{{ config.smtp_password or '' }}" placeholder="••••••••••••" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono" />
+                        <p class="text-[11px] text-slate-400 mt-1">Para Office 365 o Gmail, usa una contraseña de aplicación.</p>
+                    </div>
                 </div>
 
                 <div>
                     <label class="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
                         <i data-lucide="sparkles" class="w-4 h-4 text-purple-600"></i>
-                        Google Gemini Vision API Key (Opcional - Máxima Precisión)
+                        Google Gemini Vision API Key (IA de Escaneo)
                     </label>
                     <input type="password" id="cfgGeminiKey" value="{{ config.gemini_api_key or '' }}" placeholder="AQ... o AIzaSy..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-mono" />
-                    <p class="text-xs text-slate-400 mt-1">Si se introduce, utiliza Inteligencia Artificial de Google para escanear etiquetas con un 99.9% de precisión.</p>
+                    <p class="text-xs text-slate-400 mt-1">Utiliza Inteligencia Artificial para escanear etiquetas con un 99.9% de precisión.</p>
                 </div>
             </div>
 
@@ -757,7 +783,7 @@
 
             // Set button loading
             btnSendEmail.disabled = true;
-            btnSendText.textContent = 'Enviando correo por Outlook...';
+            btnSendText.textContent = 'Enviando correo...';
             sendSpinner.classList.remove('hidden');
 
             const formData = new FormData();
@@ -780,14 +806,13 @@
 
                 if (res.success) {
                     if (res.action === 'open_outlook' && res.outlook_web_url) {
-                        // Attempt to open Outlook 365 Web in new tab, or fallback to mailto
                         const win = window.open(res.outlook_web_url, '_blank');
                         if (!win || win.closed || typeof win.closed === 'undefined') {
                             window.location.href = res.mailto_url;
                         }
-                        showToast('Abriendo Outlook 365 con el aviso de avería...', 'success');
+                        showToast('Abriendo Outlook 365...', 'success');
                     } else {
-                        showToast(res.message || 'Correo enviado exitosamente vía Outlook', 'success');
+                        showToast(res.message || 'Correo enviado exitosamente', 'success');
                     }
                 } else {
                     showToast(res.message || 'Error al enviar correo', 'error');
@@ -797,12 +822,18 @@
                 showToast('Error de conexión con el servidor al enviar el correo.', 'error');
             } finally {
                 btnSendEmail.disabled = false;
-                btnSendText.textContent = 'Enviar Correo de Avería vía Outlook 365';
+                btnSendText.textContent = 'Enviar Correo de Avería';
                 sendSpinner.classList.add('hidden');
             }
         });
 
         // Settings Modal Handling
+        const cfgSmtpHost = document.getElementById('cfgSmtpHost');
+        const cfgSmtpPort = document.getElementById('cfgSmtpPort');
+        const cfgSmtpUser = document.getElementById('cfgSmtpUser');
+        const cfgSmtpPassword = document.getElementById('cfgSmtpPassword');
+        const cfgGeminiKey = document.getElementById('cfgGeminiKey');
+
         btnOpenSettings.addEventListener('click', async () => {
             try {
                 const resp = await fetch('/api/config');
@@ -810,7 +841,11 @@
                 if (cfg) {
                     if (cfgRecipient) cfgRecipient.value = cfg.default_recipient || '';
                     if (cfgSubjectPrefix) cfgSubjectPrefix.value = cfg.subject_prefix || '';
-                    if (cfgEmailMethod) cfgEmailMethod.value = cfg.email_method || 'outlook_com';
+                    if (cfgEmailMethod) cfgEmailMethod.value = cfg.email_method || 'smtp';
+                    if (cfgSmtpHost) cfgSmtpHost.value = cfg.smtp_host || 'smtp.office365.com';
+                    if (cfgSmtpPort) cfgSmtpPort.value = cfg.smtp_port || 587;
+                    if (cfgSmtpUser) cfgSmtpUser.value = cfg.smtp_user || '';
+                    if (cfgSmtpPassword) cfgSmtpPassword.value = cfg.smtp_password || '';
                     if (cfgGeminiKey) cfgGeminiKey.value = cfg.gemini_api_key || '';
                 }
             } catch (e) {
@@ -822,13 +857,15 @@
             btn.addEventListener('click', () => settingsModal.classList.add('hidden'));
         });
 
-        const cfgGeminiKey = document.getElementById('cfgGeminiKey');
-
         btnSaveSettings.addEventListener('click', async () => {
             const updated = {
                 default_recipient: cfgRecipient.value.trim(),
                 subject_prefix: cfgSubjectPrefix.value.trim(),
                 email_method: cfgEmailMethod.value,
+                smtp_host: cfgSmtpHost ? cfgSmtpHost.value.trim() : 'smtp.office365.com',
+                smtp_port: cfgSmtpPort ? parseInt(cfgSmtpPort.value, 10) || 587 : 587,
+                smtp_user: cfgSmtpUser ? cfgSmtpUser.value.trim() : '',
+                smtp_password: cfgSmtpPassword ? cfgSmtpPassword.value.trim() : '',
                 gemini_api_key: cfgGeminiKey ? cfgGeminiKey.value.trim() : ""
             };
 
