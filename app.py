@@ -173,10 +173,13 @@ async def send_email(
         except Exception as e:
             print(f"Error reading file for attachment: {e}")
 
-    email_method = config.get("email_method", "outlook_com")
+    email_method = config.get("email_method", "smtp")
+    print(f"[API] Petición /api/send-email recibida para: '{target_recipient}'. Método: {email_method}", flush=True)
 
     if email_method == "smtp":
-        result = EmailService.send_via_smtp(
+        import asyncio
+        result = await asyncio.to_thread(
+            EmailService.send_via_smtp,
             to=target_recipient,
             subject=target_subject,
             sn=clean_sn,
@@ -189,7 +192,9 @@ async def send_email(
     else:
         # Outlook 365 Method
         if os.name == "nt":
-            result = EmailService.send_via_outlook_com(
+            import asyncio
+            result = await asyncio.to_thread(
+                EmailService.send_via_outlook_com,
                 to=target_recipient,
                 subject=target_subject,
                 sn=clean_sn,
