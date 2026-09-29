@@ -174,9 +174,25 @@ async def send_email(
             print(f"Error reading file for attachment: {e}")
 
     email_method = config.get("email_method", "smtp")
+    resend_key = config.get("resend_api_key", "").strip()
     print(f"[API] Petición /api/send-email recibida para: '{target_recipient}'. Método: {email_method}", flush=True)
 
-    if email_method == "smtp":
+    if resend_key or email_method == "resend":
+        import asyncio
+        reply_to_email = config.get("smtp_user", "").strip() or "jegea@agenormantenimientos.com"
+        result = await asyncio.to_thread(
+            EmailService.send_via_resend,
+            to=target_recipient,
+            subject=target_subject,
+            sn=clean_sn,
+            text=text,
+            api_key=resend_key,
+            ref=clean_ref,
+            reply_to=reply_to_email,
+            image_bytes=image_bytes,
+            image_filename=image_name
+        )
+    elif email_method == "smtp":
         import asyncio
         result = await asyncio.to_thread(
             EmailService.send_via_smtp,
