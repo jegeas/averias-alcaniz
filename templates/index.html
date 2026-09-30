@@ -271,7 +271,7 @@
                             class="w-full bg-agenor-600 hover:bg-agenor-700 active:bg-agenor-800 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-agenor-500/25 flex items-center justify-center gap-3 transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                             <i data-lucide="send" class="w-5 h-5"></i>
-                            <span id="btnSendText">Preparar y Enviar en Outlook 365</span>
+                            <span id="btnSendText">Abrir en Outlook de Escritorio</span>
                             <div id="sendSpinner" class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                         </button>
                     </div>
@@ -805,24 +805,39 @@
                 const res = await resp.json();
 
                 if (res.success) {
-                    if (res.action === 'open_outlook' && res.outlook_web_url) {
-                        const win = window.open(res.outlook_web_url, '_blank');
-                        if (!win || win.closed || typeof win.closed === 'undefined') {
-                            window.location.href = res.mailto_url;
+                    if (res.action === 'open_outlook') {
+                        // 1. Copy image to clipboard if available for instant Ctrl+V
+                        if (currentFile && navigator.clipboard && window.ClipboardItem) {
+                            try {
+                                const type = currentFile.type.startsWith('image/') ? currentFile.type : 'image/png';
+                                const item = new ClipboardItem({ [type]: currentFile });
+                                await navigator.clipboard.write([item]);
+                            } catch (clipErr) {
+                                console.log("Clipboard write notice:", clipErr);
+                            }
                         }
-                        showToast('Abriendo Outlook 365...', 'success');
+
+                        // 2. Launch Native Desktop Outlook Application
+                        const mailtoLink = document.createElement('a');
+                        mailtoLink.href = res.mailto_url;
+                        mailtoLink.style.display = 'none';
+                        document.body.appendChild(mailtoLink);
+                        mailtoLink.click();
+                        mailtoLink.remove();
+
+                        showToast('Abriendo tu aplicación de Outlook... (Foto copiada: pulsa Ctrl+V para pegarla)', 'success');
                     } else {
                         showToast(res.message || 'Correo enviado exitosamente', 'success');
                     }
                 } else {
-                    showToast(res.message || 'Error al enviar correo', 'error');
+                    showToast(res.message || 'Error al preparar correo', 'error');
                 }
             } catch (err) {
                 console.error(err);
-                showToast('Error de conexión con el servidor al enviar el correo.', 'error');
+                showToast('Error de conexión con el servidor al preparar el correo.', 'error');
             } finally {
                 btnSendEmail.disabled = false;
-                btnSendText.textContent = 'Preparar y Enviar en Outlook 365';
+                btnSendText.textContent = 'Abrir en Outlook de Escritorio';
                 sendSpinner.classList.add('hidden');
             }
         });
