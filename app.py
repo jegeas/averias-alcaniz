@@ -173,11 +173,28 @@ async def send_email(
         except Exception as e:
             print(f"Error reading file for attachment: {e}")
 
-    email_method = config.get("email_method", "smtp")
+    email_method = config.get("email_method", "outlook_com")
+    brevo_key = config.get("brevo_api_key", "").strip()
     resend_key = config.get("resend_api_key", "").strip()
     print(f"[API] Petición /api/send-email recibida para: '{target_recipient}'. Método: {email_method}", flush=True)
 
-    if resend_key or email_method == "resend":
+    if brevo_key or email_method == "brevo":
+        import asyncio
+        sender_email = config.get("smtp_user", "").strip() or "jegea@agenormantenimientos.com"
+        result = await asyncio.to_thread(
+            EmailService.send_via_brevo,
+            to=target_recipient,
+            subject=target_subject,
+            sn=clean_sn,
+            text=text,
+            api_key=brevo_key,
+            sender_email=sender_email,
+            sender_name="Joaquín Egea Serrano",
+            ref=clean_ref,
+            image_bytes=image_bytes,
+            image_filename=image_name
+        )
+    elif email_method == "resend" and resend_key:
         import asyncio
         reply_to_email = config.get("smtp_user", "").strip() or "jegea@agenormantenimientos.com"
         result = await asyncio.to_thread(
