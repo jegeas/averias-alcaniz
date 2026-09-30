@@ -178,7 +178,7 @@ async def send_email(
     resend_key = config.get("resend_api_key", "").strip()
     print(f"[API] Petición /api/send-email recibida para: '{target_recipient}'. Método: {email_method}", flush=True)
 
-    if brevo_key or email_method == "brevo":
+    if email_method == "brevo" and brevo_key:
         import asyncio
         sender_email = config.get("smtp_user", "").strip() or "jegea@agenormantenimientos.com"
         result = await asyncio.to_thread(

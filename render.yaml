@@ -9,7 +9,7 @@ services:
       - key: DEFAULT_RECIPIENT
         value: clientes.sistemas.medicos@philips.com
       - key: EMAIL_METHOD
-        value: smtp
+        value: outlook_com
       - key: SMTP_HOST
         value: smtp.office365.com
       - key: SMTP_PORT
