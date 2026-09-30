@@ -63,6 +63,8 @@ class ConfigService:
             config["gemini_api_key"] = os.environ["GOOGLE_API_KEY"].strip()
         if "RESEND_API_KEY" in os.environ:
             config["resend_api_key"] = os.environ["RESEND_API_KEY"].strip()
+        if "BREVO_API_KEY" in os.environ:
+            config["brevo_api_key"] = os.environ["BREVO_API_KEY"].strip()
 
         return config
 

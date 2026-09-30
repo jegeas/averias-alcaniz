@@ -465,3 +465,94 @@ $mail.HTMLBody = @'
                 "success": False,
                 "message": f"Error de conexión con Resend: {str(e)}"
             }
+
+    @classmethod
+    def send_via_brevo(
+        cls,
+        to: str,
+        subject: str,
+        sn: str,
+        text: str,
+        api_key: str,
+        sender_email: str = "jegea@agenormantenimientos.com",
+        sender_name: str = "Joaquín Egea Serrano",
+        ref: str = "",
+        image_bytes: Optional[bytes] = None,
+        image_filename: str = "foto_equipo.jpg"
+    ) -> Dict[str, Any]:
+        """
+        Sends email via Brevo (Sendinblue) HTTPS REST API (v3).
+        Allows verified individual sender emails without domain DNS modifications.
+        Bypasses Render SMTP port restrictions (uses HTTPS port 443).
+        """
+        import requests
+        try:
+            clean_key = (api_key or "").strip()
+            if not clean_key:
+                return {
+                    "success": False,
+                    "message": "Falta configurar la BREVO_API_KEY."
+                }
+
+            html_body = cls.generate_html_body(sn, text, ref=ref, has_attachment=bool(image_bytes))
+            
+            payload: Dict[str, Any] = {
+                "sender": {
+                    "name": sender_name or "Joaquín Egea Serrano",
+                    "email": sender_email or "jegea@agenormantenimientos.com"
+                },
+                "to": [
+                    {
+                        "email": to.strip()
+                    }
+                ],
+                "replyTo": {
+                    "name": sender_name or "Joaquín Egea Serrano",
+                    "email": sender_email or "jegea@agenormantenimientos.com"
+                },
+                "subject": subject,
+                "htmlContent": html_body
+            }
+
+            if image_bytes:
+                b64_content = base64.b64encode(image_bytes).decode("utf-8")
+                payload["attachment"] = [
+                    {
+                        "name": image_filename,
+                        "content": b64_content
+                    }
+                ]
+
+            headers = {
+                "api-key": clean_key,
+                "Content-Type": "application/json",
+                "accept": "application/json"
+            }
+
+            print(f"[BREVO] Enviando correo HTTPS hacia {to} (Remitente: {sender_email})...", flush=True)
+            resp = requests.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers, timeout=12)
+
+            if resp.status_code in [200, 201, 202]:
+                print(f"[BREVO] Correo enviado con éxito a {to}.", flush=True)
+                return {
+                    "success": True,
+                    "message": f"Correo enviado exitosamente vía Brevo a: {to}",
+                    "method": "brevo"
+                }
+            else:
+                try:
+                    err_data = resp.json()
+                    err_msg = err_data.get("message", resp.text)
+                except Exception:
+                    err_msg = resp.text[:150]
+                print(f"[BREVO ERROR] HTTP {resp.status_code}: {err_msg}", flush=True)
+                return {
+                    "success": False,
+                    "message": f"Error de Brevo ({resp.status_code}): {err_msg}"
+                }
+        except Exception as e:
+            print(f"[BREVO ERROR] Excepcion: {e}", flush=True)
+            return {
+                "success": False,
+                "message": f"Error de conexión con Brevo: {str(e)}"
+            }
